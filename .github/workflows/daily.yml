@@ -1,7 +1,8 @@
 name: daily-reel
 on:
   schedule:
-    - cron: "30 10 * * *"   # 19:30 JST に起動し、20:05〜20:55の指定時刻まで待って投稿
+    - cron: "30 2 * * *"    # 11:30 JST に起動 → 12:00〜13:00 のランダムな時刻(1分単位)まで待って投稿
+    - cron: "30 10 * * *"   # 19:30 JST に起動 → 20:00〜21:00 のランダムな時刻(1分単位)まで待って投稿
   workflow_dispatch:
     inputs:
       dry_run:
@@ -60,7 +61,7 @@ jobs:
           python - <<'PY'
           import json, datetime
           from zoneinfo import ZoneInfo
-          t = json.load(open("output/script.json", encoding="utf-8"))["theme"]
-          open("data/daily_log.csv", "a", encoding="utf-8").write(f"{datetime.datetime.now(ZoneInfo('Asia/Tokyo')).date()},{t},,\n")  # 日付,タイトル,ビュー数(あとで記入),備考
+          s = json.load(open("output/script.json", encoding="utf-8")); t = s["theme"]
+          open("data/daily_log.csv", "a", encoding="utf-8").write(f"{datetime.datetime.now(ZoneInfo('Asia/Tokyo')).date()} {s['post_time']},{t},,\n")  # 日付 時刻,タイトル,ビュー数(あとで記入),備考
           PY
           git add history.json data/daily_log.csv && git commit -m "history" && git push || true
