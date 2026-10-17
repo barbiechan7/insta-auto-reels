@@ -34,4 +34,9 @@ jobs:
       - name: Save history
         run: |
           git config user.name bot; git config user.email bot@users.noreply.github.com
-          git add history.json && git commit -m "history" && git push || true
+          python - <<'PY'
+          import json, csv, datetime
+          t = json.load(open("output/script.json", encoding="utf-8"))["theme"]
+          open("data/daily_log.csv", "a", encoding="utf-8").write(f"{datetime.date.today()},{t},,\n")  # 日付,タイトル,ビュー数(あとで記入),備考
+          PY
+          git add history.json data/daily_log.csv && git commit -m "history" && git push || true
