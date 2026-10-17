@@ -30,3 +30,14 @@ https://console.anthropic.com/ でAPIキーを発行 → **ANTHROPIC_API_KEY**
 
 ## 二重投稿の防止
 同じ日・同じ枠(昼/夜)はすでに投稿済みなら実行をスキップします。GitHubの定期実行が遅れた場合の保険として、各枠で2回起動します。
+
+## 6. LINE通知(Slackの代わり、または両方)
+LINE Notifyは2025年3月に終了したため、LINE公式アカウントのMessaging APIを使います(無料枠あり)。
+1. https://developers.line.biz/ でプロバイダーとMessaging APIチャネルを作成(既存のLINE公式アカウントをMessaging APIに接続してもよい)
+2. チャネル基本設定の最下部「あなたのユーザーID」(Uから始まる文字列) → **LINE_USER_ID**
+3. Messaging API設定の「チャネルアクセストークン(長期)」を発行 → **LINE_CHANNEL_TOKEN**
+4. 通知を受けたいLINEアカウントで、その公式アカウントを友だち追加しておく
+5. 自分のターミナルで登録(実行後に値を貼り付ける)
+       gh secret set LINE_USER_ID -R barbiechan7/insta-auto-reels
+       gh secret set LINE_CHANNEL_TOKEN -R barbiechan7/insta-auto-reels
+6. 動作確認: Actions > weekly-report > Run workflow

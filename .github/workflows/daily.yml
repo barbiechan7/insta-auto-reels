@@ -26,6 +26,8 @@ jobs:
       IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
       GH_TOKEN: ${{ github.token }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      LINE_CHANNEL_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
+      LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
       EVENT_NAME: ${{ github.event_name }}
     steps:
       - uses: actions/checkout@v4
@@ -88,6 +90,5 @@ jobs:
       - name: Notify failure to Slack
         if: failure()
         run: |
-          if [ -n "$SLACK_WEBHOOK_URL" ]; then
-            curl -s -X POST -H 'Content-type: application/json' --data '{"text":":rotating_light: 自動投稿でエラーが起きました(${{ github.event_name }})。 ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' "$SLACK_WEBHOOK_URL"
-          fi
+          pip install -q requests
+          python src/notify.py ":rotating_light: 自動投稿でエラーが起きました(${{ github.event_name }})。 ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
