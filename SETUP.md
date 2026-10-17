@@ -1,12 +1,11 @@
 # 自動投稿の準備(あなたが行う部分)
 
-## 1. Instagram側(最初の1回だけ)
-1. Instagramがプロアカウント(ビジネス/クリエイター)であることを確認(@runa_uranai777 はOK)
-2. Facebookページを作り、InstagramアカウントとFacebookページを連携する(Instagramの設定 > アカウントセンター等)
-3. https://developers.facebook.com/ で「アプリ」を作成(種類: ビジネス)→ 製品に「Instagram」(Instagram Graph API)を追加
-4. 権限 `instagram_basic` `instagram_content_publish` `pages_show_list` `pages_read_engagement` を付けてアクセストークンを発行
-   (Graph APIエクスプローラで発行 → 「長期トークン」に交換。約60日で期限切れ)
-5. Graph APIエクスプローラで `me/accounts?fields=instagram_business_account` を実行 → 出てきた `instagram_business_account.id` が **IG_USER_ID**
+## 1. Instagram側(最初の1回だけ) ※Instagramログイン方式(Facebookページ不要)
+1. Metaの開発者サイト > アプリ「インスタインサイト分析用」> ユースケース > カスタマイズ > 「Instagramログインによる API設定」
+2. 左メニュー「アクセス許可と機能」で `instagram_business_basic` と `instagram_business_content_publish` を追加
+3. アプリの役割 > 「役割」で、runa_uranai777 を「Instagramテスター」に追加 → Instagramアプリ側(設定 > ウェブサイトのアクセス許可 > テスターの招待)で承認
+4. API設定のステップ2「アカウントを追加」で runa_uranai777 を追加(ログインして許可)
+5. 追加されたアカウント横の数字が **IG_USER_ID**。「トークンを生成」で出るトークンが **IG_ACCESS_TOKEN**(約60日で期限切れ)
 
 ## 2. Anthropic APIキー
 https://console.anthropic.com/ でAPIキーを発行 → **ANTHROPIC_API_KEY**

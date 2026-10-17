@@ -1,6 +1,6 @@
 """Instagram Graph APIでリール投稿。使い方: post.py <video_url> <script.json> [cover_url]"""
 import json, os, sys, time, requests
-G = "https://graph.facebook.com/v21.0"
+G = os.environ.get("IG_API_BASE", "https://graph.instagram.com/v21.0")   # Instagramログイン方式のトークン用。Facebookログイン方式なら IG_API_BASE=https://graph.facebook.com/v21.0
 
 def main(video_url, script_path, cover_url=None):
     s = json.load(open(script_path, encoding="utf-8"))
