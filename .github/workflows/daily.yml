@@ -29,6 +29,9 @@ jobs:
           python src/prepare.py output/script.json
           python src/render.py output/script.json assets/bg.mp4 output/reel.mp4
           python src/thumbnail.py output/script.json output/cover.jpg
+      - name: Check Instagram token (no posting)
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        run: python src/check_token.py
       - name: Upload test files
         if: ${{ github.event.inputs.dry_run == 'true' }}
         uses: actions/upload-artifact@v4
