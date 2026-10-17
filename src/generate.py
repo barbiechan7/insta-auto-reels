@@ -35,8 +35,6 @@ def main(out):
     s = json.loads(txt[txt.index("{"):txt.rindex("}")+1])
     assert len(s["ranks"]) == 5 and all(len(r["lines"]) == 2 for r in s["ranks"])
     json.dump(s, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-    hist.append({"date": datetime.date.today().isoformat(), "theme": s["theme"]})
-    json.dump(hist[-100:], open(HIST, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
 if __name__ == "__main__":
     main(sys.argv[1])

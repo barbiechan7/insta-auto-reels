@@ -14,21 +14,35 @@ def random_time(date, slot):
     minute = random.Random(f"{date.isoformat()}-{slot}").randrange(0, 60)
     return f"{HOURS[slot]}:{minute:02d}"
 
+def set_output(key, value):
+    path = os.environ.get("GITHUB_OUTPUT")
+    if path:
+        open(path, "a").write(f"{key}={value}\n")
+
 def main(out):
     now = datetime.datetime.now(ZoneInfo("Asia/Tokyo"))
     today, slot = now.date(), current_slot(now)
+    # 二重投稿の防止: 同じ日・同じ枠がすでに投稿済みなら何もしない
+    hist = json.load(open(generate.HIST, encoding="utf-8")) if os.path.exists(generate.HIST) else []
+    if any(h.get("date") == today.isoformat() and h.get("slot") == slot for h in hist):
+        print("skip: already posted", today, slot); set_output("skip", "true"); return
     q = f"queue/{today.isoformat()}-{slot}.json"
     if os.path.exists(q):
         shutil.copy(q, out)
-        hist = json.load(open(generate.HIST, encoding="utf-8")) if os.path.exists(generate.HIST) else []
-        hist.append({"date": today.isoformat(), "slot": slot, "theme": json.load(open(q, encoding="utf-8"))["theme"]})
-        json.dump(hist[-100:], open(generate.HIST, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     else:
         generate.main(out)
     s = json.load(open(out, encoding="utf-8"))
     s["post_time"] = random_time(today, slot)
+    # 自動実行が大幅に遅れて、枠の終わりを過ぎてしまった場合は投稿しない(手動実行は常に投稿)
+    h, m = map(int, s["post_time"].split(":"))
+    late = (now - now.replace(hour=h, minute=m, second=0, microsecond=0)).total_seconds() / 60
+    if os.environ.get("EVENT_NAME") == "schedule" and late > 45:
+        print(f"skip: {late:.0f} min after post time"); set_output("skip", "true"); return
     s["slot"] = slot
     json.dump(s, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    hist = json.load(open(generate.HIST, encoding="utf-8")) if os.path.exists(generate.HIST) else []
+    hist.append({"date": today.isoformat(), "slot": slot, "theme": s["theme"]})
+    json.dump(hist[-100:], open(generate.HIST, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print("slot:", slot, "post_time:", s["post_time"])
 
 if __name__ == "__main__":

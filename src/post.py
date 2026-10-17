@@ -17,6 +17,8 @@ def main(video_url, script_path, cover_url=None):
         time.sleep(10)
     r = requests.post(f"{G}/{uid}/media_publish", data={"creation_id": cid, "access_token": tok}, timeout=60)
     r.raise_for_status(); print("posted", r.json())
+    os.makedirs("output", exist_ok=True)
+    open("output/posted_id.txt", "w").write(str(r.json().get("id", "")))
 
 if __name__ == "__main__":
     main(*sys.argv[1:4])
