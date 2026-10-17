@@ -19,3 +19,14 @@ https://console.anthropic.com/ でAPIキーを発行 → **ANTHROPIC_API_KEY**
 ## 4. 動作確認
 - テスト(投稿しない): Actions > daily-reel > Run workflow > dry_run に true
 - 本番: dry_run を空のまま実行すると、その日の20:05〜20:55の指定時刻まで待って実際に投稿する
+
+## 5. Slack通知(任意・設定すると有効)
+- 毎週月曜 9:00(日本時間): 直近7日の投稿の再生数(ビュー)・リーチ、アーカイブ候補をSlackに投稿
+- エラー時: 自動投稿の失敗をすぐSlackに通知
+1. Slackで通知したいチャンネルを決め、「Incoming Webhook」のURLを発行する(https://api.slack.com/apps > Create New App > Incoming Webhooks > Add New Webhook to Workspace)
+2. 自分のターミナルで登録(実行後にURLを貼り付ける)
+       gh secret set SLACK_WEBHOOK_URL -R barbiechan7/insta-auto-reels
+3. 動作確認: Actions > weekly-report > Run workflow
+
+## 二重投稿の防止
+同じ日・同じ枠(昼/夜)はすでに投稿済みなら実行をスキップします。GitHubの定期実行が遅れた場合の保険として、各枠で2回起動します。
