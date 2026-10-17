@@ -1,17 +1,13 @@
 """台本JSON + 背景動画 -> 1080x1920 5秒の無音リール。参考動画のレイアウトを再現。"""
 import json, os, subprocess, sys, tempfile
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 W, H, FPS, DUR = 1080, 1920, 30, 5.0
-FONT_CANDIDATES = [
-    os.environ.get("FONT_PATH", ""),
-    "/System/Library/Fonts/ヒラギノ角ゴシック W7.ttc",
-    "/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc",
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
-    "/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc",
-]
-FONT = next(p for p in FONT_CANDIDATES if p and os.path.exists(p))
-def font(size): return ImageFont.truetype(FONT, size)
+HERE = os.path.dirname(os.path.abspath(__file__))
+FONT_DIR = os.path.join(HERE, "..", "assets", "fonts")   # リポジトリ同梱(OFL)。CI環境のフォントに依存しない
+FONT_HEAD = os.path.join(FONT_DIR, "ZenKakuGothicNew-Black.ttf")
+FONT_BODY = os.path.join(FONT_DIR, "BIZUDPGothic-Bold.ttf")
+def font(size, body=False): return ImageFont.truetype(FONT_BODY if body else FONT_HEAD, size)
 
 ROW_Y = [565, 765, 965, 1160, 1360]   # 各位の見出し中心y
 TITLE_Y, FOOT_Y = 365, [1578, 1665]
@@ -22,6 +18,10 @@ def text_c(d, xy, s, f, fill, anchor="mm"):
 
 def glitch(layer, xy, s, f, anchor="mm", off=4):
     """シアン/マゼンタの色ずれ付き白文字"""
+    glow = Image.new("RGBA", layer.size, (0, 0, 0, 0))
+    text_c(ImageDraw.Draw(glow), xy, s, f, (190, 225, 255, 255), anchor)
+    glow = glow.filter(ImageFilter.GaussianBlur(14))
+    layer.alpha_composite(glow)
     d = ImageDraw.Draw(layer)
     text_c(d, (xy[0]-off, xy[1]), s, f, CYAN + (255,), anchor)
     text_c(d, (xy[0]+off, xy[1]), s, f, MAGENTA + (255,), anchor)
@@ -41,15 +41,15 @@ def moon(d, cx, cy, r):
     md.ellipse((r+r//2, r-r//4, r*3+r//2, r*3-r//4), fill=0)
     return m
 
-def static_layers(script):
+def static_layers(script, off=4):
     title = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    glitch(title, (W//2, TITLE_Y), script["theme"], font(84))
+    glitch(title, (W//2, TITLE_Y), script["theme"], font(92), off=off)
     foot = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     lines = ["長押しで止められるわ", "誕生日をコメントで無料鑑定"]
     for y, s in zip(FOOT_Y, lines):
-        f = font(66); w = ImageDraw.Draw(foot).textlength(s, font=f)
+        f = font(68); w = ImageDraw.Draw(foot).textlength(s, font=f)
         x0 = (W - w - 70) / 2
-        glitch(foot, (x0 + w/2, y), s, f, off=3)
+        glitch(foot, (x0 + w/2, y), s, f, off=off - 1)
         mm = moon(None, 0, 0, 30); col = Image.new("RGBA", mm.size, (255, 200, 40, 255))
         foot.paste(col.resize((76, 76)), (int(x0 + w + 8), y - 40), mm.resize((76, 76)))
     return title, foot
@@ -58,22 +58,24 @@ def row_layer(script, i, nchars):
     """i位の行。nchars=説明文の表示済み文字数(タイプライター)"""
     L = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(L)
     y = ROW_Y[i]; r = script["ranks"][i]
-    DW = 600
-    for off, col in ((3, (0, 0, 30, 150)), (0, WHITE + (255,))):
-        text_c(d, (110+off, y+off), f"{i+1}位", font(78), col, "lm")
-        squeezed(L, (285+off, y+off), f"{r['days']}日生まれ", 92, col, DW)
+    sh = Image.new("RGBA", (W, H), (0, 0, 0, 0)); sd = ImageDraw.Draw(sh)
+    text_c(sd, (113, y+4), f"{i+1}位", font(80), (0, 10, 50, 200), "lm")
+    text_c(sd, (288, y+4), f"{r['days']}日生まれ", font(78), (0, 10, 50, 200), "lm")
+    L.alpha_composite(sh.filter(ImageFilter.GaussianBlur(4)))
+    text_c(d, (110, y), f"{i+1}位", font(80), WHITE+(255,), "lm")
+    text_c(d, (285, y), f"{r['days']}日生まれ", font(78), WHITE+(255,), "lm")
     left = nchars
     for k, line in enumerate(r["lines"]):
         shown = line[:max(0, left)]; left -= len(line)
         if shown:
-            yy = y + 70 + k*50
-            text_c(d, (281, yy+2), shown, font(37), (0, 0, 30, 150), "lm")
-            text_c(d, (280, yy), shown, font(37), WHITE+(255,), "lm")
+            yy = y + 74 + k*50
+            text_c(d, (281, yy+2), shown, font(38, True), (0, 10, 50, 170), "lm")
+            text_c(d, (280, yy), shown, font(38, True), WHITE+(255,), "lm")
     return L
 
 def render(script_path, bg_path, out_path):
     script = json.load(open(script_path, encoding="utf-8"))
-    title, foot = static_layers(script)
+    variants = [static_layers(script, o) for o in (3, 5, 4)]   # 色ずれの揺らぎ
     n = int(FPS*DUR)
     t_start = [0.15 + i*0.7 for i in range(5)]       # 各位の登場時刻
     type_dur, erase_at = 0.6, 4.35
@@ -82,6 +84,7 @@ def render(script_path, bg_path, out_path):
         for fi in range(n):
             t = fi / FPS
             frame = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+            title, foot = variants[(fi // 3) % 3]
             frame.alpha_composite(title); frame.alpha_composite(foot)
             for i in range(5):
                 if t < t_start[i] or t >= erase_at + i*0.1:   # 頭から順に消える
