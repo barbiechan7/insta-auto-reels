@@ -24,14 +24,16 @@ jobs:
           mkdir -p output
           python src/prepare.py output/script.json
           python src/render.py output/script.json assets/bg.mp4 output/reel.mp4
+          python src/thumbnail.py output/script.json output/cover.jpg
       - name: Release
         id: rel
         run: |
           TAG="reel-$(date +%Y%m%d-%H%M)"
-          gh release create "$TAG" output/reel.mp4 --title "$TAG" --notes ""
+          gh release create "$TAG" output/reel.mp4 output/cover.jpg --title "$TAG" --notes ""
           echo "url=https://github.com/${{ github.repository }}/releases/download/$TAG/reel.mp4" >> $GITHUB_OUTPUT
+          echo "cover=https://github.com/${{ github.repository }}/releases/download/$TAG/cover.jpg" >> $GITHUB_OUTPUT
       - run: python src/wait_until.py output/script.json
-      - run: python src/post.py "${{ steps.rel.outputs.url }}" output/script.json
+      - run: python src/post.py "${{ steps.rel.outputs.url }}" output/script.json "${{ steps.rel.outputs.cover }}"
       - name: Save history
         run: |
           git config user.name bot; git config user.email bot@users.noreply.github.com
