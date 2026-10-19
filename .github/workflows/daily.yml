@@ -1,17 +1,23 @@
 name: daily-reel
 on:
   schedule:
-    # 昼枠(12:00〜13:00に投稿)。GitHubの定期実行は遅れることがあるので、2回起動して保険にする(二重投稿は prepare.py が防ぐ)
-    - cron: "0 2 * * *"     # 11:00 JST
-    - cron: "30 2 * * *"    # 11:30 JST
-    # 夜枠(20:00〜21:00に投稿)
-    - cron: "0 10 * * *"    # 19:00 JST
-    - cron: "30 10 * * *"   # 19:30 JST
+    # GitHubの定期実行は、数時間遅れることがあるため、投稿時刻よりかなり早めに起動して、
+    # 指定の時刻(昼12:00-13:00 / 夜20:00-21:00の1分単位ランダム)まで待ってから投稿する。
+    # 各枠3回起動して保険にする(二重投稿は prepare.py が防ぐ)。昼用/夜用は cron の「時」で判別する。
+    - cron: "0 23 * * *"    # 昼用 08:00 JST
+    - cron: "0 1 * * *"     # 昼用 10:00 JST
+    - cron: "30 2 * * *"    # 昼用 11:30 JST
+    - cron: "0 8 * * *"     # 夜用 17:00 JST
+    - cron: "0 10 * * *"    # 夜用 19:00 JST
+    - cron: "30 11 * * *"   # 夜用 20:30 JST
   workflow_dispatch:
     inputs:
       dry_run:
         description: "true なら動画とサムネを作るだけ(投稿・公開しない)"
         default: "false"
+      slot:
+        description: "noon(昼) か eve(夜)。空なら現在時刻で判断"
+        default: ""
 permissions:
   contents: write
 concurrency:
@@ -29,6 +35,8 @@ jobs:
       LINE_CHANNEL_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
       LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
       EVENT_NAME: ${{ github.event_name }}
+      SCHEDULE: ${{ github.event.schedule }}
+      SLOT: ${{ github.event.inputs.slot }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

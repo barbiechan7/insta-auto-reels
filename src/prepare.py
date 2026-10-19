@@ -8,7 +8,13 @@ import generate
 HOURS = {"noon": 12, "eve": 20}
 
 def current_slot(now):
-    return os.environ.get("SLOT") or ("noon" if now.hour < 16 else "eve")
+    """枠の決め方: 手動実行で指定(SLOT) > どの定期起動(cron)で動いたか > 現在時刻。
+    GitHubの定期実行は数時間遅れることがあるので、起動時刻ではなくcronの種類で昼/夜を決める。"""
+    if os.environ.get("SLOT") in HOURS: return os.environ["SLOT"]
+    sched = os.environ.get("SCHEDULE", "").split()
+    if len(sched) >= 2 and sched[1].isdigit():   # UTCの時: 23,0,1,2,3=昼用 / 8,9,10,11=夜用
+        return "noon" if int(sched[1]) in (23, 0, 1, 2, 3) else "eve"
+    return "noon" if now.hour < 16 else "eve"
 
 def random_time(date, slot):
     minute = random.Random(f"{date.isoformat()}-{slot}").randrange(0, 60)
@@ -36,7 +42,7 @@ def main(out):
     # 自動実行が大幅に遅れて、枠の終わりを過ぎてしまった場合は投稿しない(手動実行は常に投稿)
     h, m = map(int, s["post_time"].split(":"))
     late = (now - now.replace(hour=h, minute=m, second=0, microsecond=0)).total_seconds() / 60
-    if os.environ.get("EVENT_NAME") == "schedule" and late > 45:
+    if os.environ.get("EVENT_NAME") == "schedule" and late > 300:   # 5時間以上遅れたら、次の枠と重なるのでスキップ
         print(f"skip: {late:.0f} min after post time"); set_output("skip", "true"); return
     s["slot"] = slot
     json.dump(s, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
