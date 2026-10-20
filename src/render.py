@@ -5,8 +5,9 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 W, H, FPS, DUR = 1080, 1920, 30, 5.0
 HERE = os.path.dirname(os.path.abspath(__file__))
 FONT_DIR = os.path.join(HERE, "..", "assets", "fonts")   # リポジトリ同梱(OFL)。CI環境のフォントに依存しない
-FONT_HEAD = os.path.join(FONT_DIR, "ZenKakuGothicNew-Black.ttf")
-FONT_BODY = os.path.join(FONT_DIR, "BIZUDPGothic-Bold.ttf")
+FONT_HEAD = os.path.join(FONT_DIR, "ZenOldMincho-Bold.ttf")   # 明朝(Bold)。環境変数 TELOP_FONT で太さを変えて試せる
+FONT_BODY = FONT_HEAD   # 本文も同じ書体
+if os.environ.get("TELOP_FONT"): FONT_HEAD = FONT_BODY = os.path.join(FONT_DIR, os.environ["TELOP_FONT"])
 def font(size, body=False): return ImageFont.truetype(FONT_BODY if body else FONT_HEAD, size)
 
 ROW_Y = [565, 765, 965, 1160, 1360]   # 各位の見出し中心y
@@ -17,23 +18,11 @@ def text_c(d, xy, s, f, fill, anchor="mm"):
     d.text(xy, s, font=f, fill=fill, anchor=anchor)
 
 def glitch(layer, xy, s, f, anchor="mm", off=4):
-    """シアン/マゼンタの色ずれ付き白文字"""
-    glow = Image.new("RGBA", layer.size, (0, 0, 0, 0))
-    text_c(ImageDraw.Draw(glow), xy, s, f, (190, 225, 255, 255), anchor)
-    glow = glow.filter(ImageFilter.GaussianBlur(14))
-    layer.alpha_composite(glow)
-    d = ImageDraw.Draw(layer)
-    text_c(d, (xy[0]-off, xy[1]), s, f, CYAN + (255,), anchor)
-    text_c(d, (xy[0]+off, xy[1]), s, f, MAGENTA + (255,), anchor)
-    text_c(d, xy, s, f, WHITE + (255,), anchor)
-
-def squeezed(L, xy, s, size, fill, width):
-    """細い書体風にするため、描画後に横幅をwidthへ圧縮して左寄せで貼る"""
-    f = font(size); tw = int(ImageDraw.Draw(L).textlength(s, font=f)) + 8
-    t = Image.new("RGBA", (tw, size*2), (0, 0, 0, 0))
-    ImageDraw.Draw(t).text((4, size), s, font=f, fill=fill, anchor="lm")
-    t = t.resize((width, size*2))
-    L.alpha_composite(t, (xy[0]-4, xy[1]-size))
+    """白文字+やわらかい影(色ずれなし)。関数名は互換のため残している"""
+    sh = Image.new("RGBA", layer.size, (0, 0, 0, 0))
+    ImageDraw.Draw(sh).text((xy[0] + 3, xy[1] + 5), s, font=f, fill=(0, 10, 50, 210), anchor=anchor)
+    layer.alpha_composite(sh.filter(ImageFilter.GaussianBlur(5)))
+    ImageDraw.Draw(layer).text(xy, s, font=f, fill=WHITE + (255,), anchor=anchor)
 
 def moon(d, cx, cy, r):
     m = Image.new("L", (r*4, r*4), 0); md = ImageDraw.Draw(m)
@@ -43,34 +32,33 @@ def moon(d, cx, cy, r):
 
 def static_layers(script, off=4):
     title = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    glitch(title, (W//2, TITLE_Y), script["theme"], font(92), off=off)
+    f = font(92)
+    while ImageDraw.Draw(title).textlength(script["theme"], font=f) > 960: f = font(f.size - 4)
+    glitch(title, (W // 2, TITLE_Y), script["theme"], f)
     foot = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    lines = ["長押しで止められるわ", "誕生日をコメントで無料鑑定"]
-    for y, s in zip(FOOT_Y, lines):
-        f = font(68); w = ImageDraw.Draw(foot).textlength(s, font=f)
-        x0 = (W - w - 70) / 2
-        glitch(foot, (x0 + w/2, y), s, f, off=off - 1)
-        mm = moon(None, 0, 0, 30); col = Image.new("RGBA", mm.size, (255, 200, 40, 255))
-        foot.paste(col.resize((76, 76)), (int(x0 + w + 8), y - 40), mm.resize((76, 76)))
+    for y, s in zip(FOOT_Y, ["長押しで止められるわ", "フォローで運気UP"]):
+        glitch(foot, (W // 2, y), s, font(66))
     return title, foot
 
 def row_layer(script, i, nchars):
     """i位の行。nchars=説明文の表示済み文字数(タイプライター)"""
     L = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(L)
     y = ROW_Y[i]; r = script["ranks"][i]
+    ds = f"{r['days']}日生まれ"; df = font(84)
+    while d.textlength(ds, font=df) > 700: df = font(df.size - 2)   # 日付が長くても右にはみ出さない
     sh = Image.new("RGBA", (W, H), (0, 0, 0, 0)); sd = ImageDraw.Draw(sh)
     text_c(sd, (113, y+4), f"{i+1}位", font(80), (0, 10, 50, 200), "lm")
-    text_c(sd, (288, y+4), f"{r['days']}日生まれ", font(78), (0, 10, 50, 200), "lm")
+    text_c(sd, (288, y+4), ds, df, (0, 10, 50, 200), "lm")
     L.alpha_composite(sh.filter(ImageFilter.GaussianBlur(4)))
     text_c(d, (110, y), f"{i+1}位", font(80), WHITE+(255,), "lm")
-    text_c(d, (285, y), f"{r['days']}日生まれ", font(78), WHITE+(255,), "lm")
+    text_c(d, (285, y), ds, df, WHITE+(255,), "lm")
     left = nchars
     for k, line in enumerate(r["lines"]):
         shown = line[:max(0, left)]; left -= len(line)
         if shown:
             yy = y + 74 + k*50
-            text_c(d, (281, yy+2), shown, font(38, True), (0, 10, 50, 170), "lm")
-            text_c(d, (280, yy), shown, font(38, True), WHITE+(255,), "lm")
+            text_c(d, (281, yy+2), shown, font(40, True), (0, 10, 50, 170), "lm")
+            text_c(d, (280, yy), shown, font(40, True), WHITE+(255,), "lm")
     return L
 
 def render(script_path, bg_path, out_path):
