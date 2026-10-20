@@ -83,14 +83,21 @@ def render(script_path, bg_path, out_path):
                 if key not in cache: cache[key] = row_layer(script, i, nc)
                 frame.alpha_composite(cache[key])
             frame.save(f"{tmp}/o{fi:04d}.png")
-        subprocess.run([
-            "ffmpeg", "-v", "error", "-y", "-stream_loop", "-1", "-i", bg_path,
-            "-framerate", str(FPS), "-i", f"{tmp}/o%04d.png",
-            "-filter_complex",
-            f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps={FPS},"
-            f"eq=brightness=-0.05[bg];[bg][1:v]overlay=shortest=1,format=yuv420p[v]",
-            "-map", "[v]", "-t", str(DUR), "-r", str(FPS), "-an",
-            "-c:v", "libx264", "-crf", "20", "-maxrate", "8M", "-bufsize", "16M", "-movflags", "+faststart", out_path], check=True)
+        bgm = os.path.join(HERE, "..", "assets", "bgm.m4a")
+        has_audio = os.path.exists(bgm) and os.environ.get("NO_BGM") != "1"
+        vol = os.environ.get("BGM_VOLUME", "0.35")   # 小さめ(約-23 LUFS)。1.0で元の音量
+        cmd = ["ffmpeg", "-v", "error", "-y", "-stream_loop", "-1", "-i", bg_path,
+               "-framerate", str(FPS), "-i", f"{tmp}/o%04d.png"]
+        fc = (f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps={FPS},"
+              f"eq=brightness=-0.05[bg];[bg][1:v]overlay=shortest=1,format=yuv420p[v]")
+        if has_audio:
+            cmd += ["-i", bgm]
+            fc += f";[2:a]atrim=0:{DUR},volume={vol},afade=t=in:d=0.1,afade=t=out:st={DUR-0.5}:d=0.5,aformat=sample_rates=44100:channel_layouts=stereo[a]"
+        cmd += ["-filter_complex", fc, "-map", "[v]"]
+        cmd += ["-map", "[a]", "-c:a", "aac", "-b:a", "160k"] if has_audio else ["-an"]
+        cmd += ["-t", str(DUR), "-r", str(FPS), "-c:v", "libx264", "-crf", "20", "-maxrate", "8M", "-bufsize", "16M",
+                "-movflags", "+faststart", out_path]
+        subprocess.run(cmd, check=True)
     print("wrote", out_path)
 
 if __name__ == "__main__":
