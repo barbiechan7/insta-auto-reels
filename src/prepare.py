@@ -7,13 +7,17 @@ import generate
 
 HOURS = {"noon": 12, "eve": 20}
 
-def current_slot(now):
-    """枠の決め方: 手動実行で指定(SLOT) > どの定期起動(cron)で動いたか > 現在時刻。
-    GitHubの定期実行は数時間遅れることがあるので、起動時刻ではなくcronの種類で昼/夜を決める。"""
-    if os.environ.get("SLOT") in HOURS: return os.environ["SLOT"]
-    sched = os.environ.get("SCHEDULE", "").split()
-    if len(sched) >= 2 and sched[1].isdigit():   # UTCの時: 23,0,1,2,3=昼用 / 8,9,10,11=夜用
-        return "noon" if int(sched[1]) in (23, 0, 1, 2, 3) else "eve"
+def due_slot(now, today, hist):
+    """15分ごとの確認で呼ばれる。時刻が来ていて、まだ投稿していない枠のうち、古いものを返す。"""
+    for slot in ("noon", "eve"):
+        if any(h.get("date") == today.isoformat() and h.get("slot") == slot for h in hist): continue
+        h, m = map(int, random_time(today, slot).split(":"))
+        if now >= now.replace(hour=h, minute=m, second=0, microsecond=0): return slot
+    return None
+
+def current_slot(now, today=None, hist=None):
+    if os.environ.get("SLOT") in HOURS: return os.environ["SLOT"]            # 手動実行で枠を指定
+    if os.environ.get("EVENT_NAME") == "schedule": return due_slot(now, today, hist or [])
     return "noon" if now.hour < 16 else "eve"
 
 def random_time(date, slot):
@@ -27,9 +31,12 @@ def set_output(key, value):
 
 def main(out):
     now = datetime.datetime.now(ZoneInfo("Asia/Tokyo"))
-    today, slot = now.date(), current_slot(now)
-    # 二重投稿の防止: 同じ日・同じ枠がすでに投稿済みなら何もしない
+    today = now.date()
     hist = json.load(open(generate.HIST, encoding="utf-8")) if os.path.exists(generate.HIST) else []
+    slot = current_slot(now, today, hist)
+    if slot is None:
+        print("skip: いま投稿する枠はありません"); set_output("skip", "true"); return
+    # 二重投稿の防止: 同じ日・同じ枠がすでに投稿済みなら何もしない
     if any(h.get("date") == today.isoformat() and h.get("slot") == slot for h in hist):
         print("skip: already posted", today, slot); set_output("skip", "true"); return
     q = f"queue/{today.isoformat()}-{slot}.json"
@@ -46,9 +53,7 @@ def main(out):
         print(f"skip: {late:.0f} min after post time"); set_output("skip", "true"); return
     s["slot"] = slot
     json.dump(s, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-    hist = json.load(open(generate.HIST, encoding="utf-8")) if os.path.exists(generate.HIST) else []
-    hist.append({"date": today.isoformat(), "slot": slot, "theme": s["theme"]})
-    json.dump(hist[-100:], open(generate.HIST, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    # 投稿の記録(history.json)は、投稿が成功したあとにワークフローで書く(失敗した枠を再試行できるようにする)
     print("slot:", slot, "post_time:", s["post_time"])
 
 if __name__ == "__main__":

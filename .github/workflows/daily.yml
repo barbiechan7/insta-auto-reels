@@ -1,15 +1,9 @@
 name: daily-reel
 on:
   schedule:
-    # GitHubの定期実行は、数時間遅れることがあるため、投稿時刻よりかなり早めに起動して、
-    # 指定の時刻(昼12:00-13:00 / 夜20:00-21:00の1分単位ランダム)まで待ってから投稿する。
-    # 各枠3回起動して保険にする(二重投稿は prepare.py が防ぐ)。昼用/夜用は cron の「時」で判別する。
-    - cron: "0 23 * * *"    # 昼用 08:00 JST
-    - cron: "0 1 * * *"     # 昼用 10:00 JST
-    - cron: "30 2 * * *"    # 昼用 11:30 JST
-    - cron: "0 8 * * *"     # 夜用 17:00 JST
-    - cron: "0 10 * * *"    # 夜用 19:00 JST
-    - cron: "30 11 * * *"   # 夜用 20:30 JST
+    # 15分ごとに「いま投稿する枠があるか」を確認する(昼12:00-13:00 / 夜20:00-21:00の、日ごとに決まる1分単位の時刻)。
+    # GitHubの定期実行は遅れたり抜けたりするため、待機はせず、時刻が来ていて未投稿の枠があれば投稿する。
+    - cron: "7,22,37,52 2-14 * * *"   # 11:07〜23:52 JST
   workflow_dispatch:
     inputs:
       dry_run:
@@ -41,14 +35,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
-      - run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg
-          pip install -r requirements.txt
       - name: Prepare script
         id: prep
         run: |
+          pip install -q requests anthropic
           mkdir -p output
           python src/prepare.py output/script.json
+      - name: Install ffmpeg and fonts deps
+        if: steps.prep.outputs.skip != 'true'
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          pip install -r requirements.txt
       - name: Render video and cover
         if: steps.prep.outputs.skip != 'true'
         run: |
@@ -74,9 +71,6 @@ jobs:
           gh release create "$TAG" output/reel.mp4 output/cover.jpg --title "$TAG" --notes ""
           echo "url=https://github.com/${{ github.repository }}/releases/download/$TAG/reel.mp4" >> $GITHUB_OUTPUT
           echo "cover=https://github.com/${{ github.repository }}/releases/download/$TAG/cover.jpg" >> $GITHUB_OUTPUT
-      - name: Wait until post time
-        if: steps.prep.outputs.skip != 'true' && github.event.inputs.dry_run != 'true'
-        run: python src/wait_until.py output/script.json
       - name: Post to Instagram
         if: steps.prep.outputs.skip != 'true' && github.event.inputs.dry_run != 'true'
         run: python src/post.py "${{ steps.rel.outputs.url }}" output/script.json "${{ steps.rel.outputs.cover }}"
@@ -89,6 +83,10 @@ jobs:
           from zoneinfo import ZoneInfo
           s = json.load(open("output/script.json", encoding="utf-8"))
           now = datetime.datetime.now(ZoneInfo("Asia/Tokyo"))
+          import os
+          hist = json.load(open("history.json", encoding="utf-8")) if os.path.exists("history.json") else []
+          hist.append({"date": str(now.date()), "slot": s["slot"], "theme": s["theme"]})
+          json.dump(hist[-100:], open("history.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
           open("data/daily_log.csv", "a", encoding="utf-8").write(f"{now.date()} {s['post_time']}(実際{now:%H:%M}),{s['theme']},,,{open('output/posted_id.txt').read().strip()}\n")  # 日付 予定時刻(実際の投稿時刻),タイトル,ビュー数(あとで記入),備考,投稿ID
           PY
           git add history.json data/daily_log.csv
