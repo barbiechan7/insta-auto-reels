@@ -5,24 +5,22 @@ import datetime, json, os, random, shutil, sys
 from zoneinfo import ZoneInfo
 import generate
 
-HOURS = {"noon": 12, "eve": 20}
+HOURS = {"eve": 18}   # 1日1本。夜の18:00〜19:59のあいだの、1分単位のランダムな時刻に投稿する(以前は昼+夜の2本)
 
 def due_slot(now, today, hist):
-    """15分ごとの確認で呼ばれる。時刻が来ていて、まだ投稿していない枠のうち、古いものを返す。"""
-    for slot in ("noon", "eve"):
-        if any(h.get("date") == today.isoformat() and h.get("slot") == slot for h in hist): continue
-        h, m = map(int, random_time(today, slot).split(":"))
-        if now >= now.replace(hour=h, minute=m, second=0, microsecond=0): return slot
-    return None
+    """15分ごとの確認で呼ばれる。今日まだ1本も投稿していなくて、時刻が来ていれば、その枠を返す。"""
+    if any(h.get("date") == today.isoformat() for h in hist): return None   # 1日1本: 今日すでに投稿済み
+    h, m = map(int, random_time(today, "eve").split(":"))
+    return "eve" if now >= now.replace(hour=h, minute=m, second=0, microsecond=0) else None
 
 def current_slot(now, today=None, hist=None):
     if os.environ.get("SLOT") in HOURS: return os.environ["SLOT"]            # 手動実行で枠を指定
     if os.environ.get("EVENT_NAME") == "schedule": return due_slot(now, today, hist or [])
-    return "noon" if now.hour < 16 else "eve"
+    return "eve"
 
 def random_time(date, slot):
-    minute = random.Random(f"{date.isoformat()}-{slot}").randrange(0, 60)
-    return f"{HOURS[slot]}:{minute:02d}"
+    total = random.Random(f"{date.isoformat()}-{slot}").randrange(0, 120)   # 18:00〜19:59
+    return f"{HOURS[slot] + total // 60}:{total % 60:02d}"
 
 def set_output(key, value):
     path = os.environ.get("GITHUB_OUTPUT")
@@ -36,8 +34,8 @@ def main(out):
     slot = current_slot(now, today, hist)
     if slot is None:
         print("skip: いま投稿する枠はありません"); set_output("skip", "true"); return
-    # 二重投稿の防止: 同じ日・同じ枠がすでに投稿済みなら何もしない
-    if any(h.get("date") == today.isoformat() and h.get("slot") == slot for h in hist):
+    # 二重投稿の防止: 今日すでに投稿済みなら何もしない(手動実行で枠を指定したときは、同じ枠だけを防ぐ)
+    if any(h.get("date") == today.isoformat() and (h.get("slot") == slot or os.environ.get("EVENT_NAME") == "schedule") for h in hist):
         print("skip: already posted", today, slot); set_output("skip", "true"); return
     q = f"queue/{today.isoformat()}-{slot}.json"
     if os.path.exists(q):
