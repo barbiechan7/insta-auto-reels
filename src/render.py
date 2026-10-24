@@ -36,8 +36,7 @@ def static_layers(script, off=4):
     while ImageDraw.Draw(title).textlength(script["theme"], font=f) > 960: f = font(f.size - 4)
     glitch(title, (W // 2, TITLE_Y), script["theme"], f)
     foot = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    for y, s in zip(FOOT_Y, ["長押しで止められるわ", "フォローで運気UP"]):
-        glitch(foot, (W // 2, y), s, font(66))
+    glitch(foot, (W // 2, 1620), "長押しで止められるわ", font(70))   # 最後の文は1行だけ
     return title, foot
 
 def row_layer(script, i, nchars):
