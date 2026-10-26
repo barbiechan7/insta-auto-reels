@@ -10,8 +10,11 @@ on:
         description: "true なら動画とサムネを作るだけ(投稿・公開しない)"
         default: "false"
       slot:
-        description: "noon(昼) か eve(夜)。空なら現在時刻で判断"
+        description: "eve(夜)。空なら現在時刻で判断"
         default: ""
+      poll:
+        description: "true なら、15分ごとの確認と同じ動き(時刻が来ていて未投稿なら投稿)。Macの補助が使う"
+        default: "false"
 permissions:
   contents: write
 concurrency:
@@ -31,6 +34,7 @@ jobs:
       EVENT_NAME: ${{ github.event_name }}
       SCHEDULE: ${{ github.event.schedule }}
       SLOT: ${{ github.event.inputs.slot }}
+      POLL: ${{ github.event.inputs.poll }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

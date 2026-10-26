@@ -15,7 +15,7 @@ def due_slot(now, today, hist):
 
 def current_slot(now, today=None, hist=None):
     if os.environ.get("SLOT") in HOURS: return os.environ["SLOT"]            # 手動実行で枠を指定
-    if os.environ.get("EVENT_NAME") == "schedule": return due_slot(now, today, hist or [])
+    if os.environ.get("EVENT_NAME") == "schedule" or os.environ.get("POLL") == "true": return due_slot(now, today, hist or [])
     return "eve"
 
 def random_time(date, slot):
@@ -35,7 +35,7 @@ def main(out):
     if slot is None:
         print("skip: いま投稿する枠はありません"); set_output("skip", "true"); return
     # 二重投稿の防止: 今日すでに投稿済みなら何もしない(手動実行で枠を指定したときは、同じ枠だけを防ぐ)
-    if any(h.get("date") == today.isoformat() and (h.get("slot") == slot or os.environ.get("EVENT_NAME") == "schedule") for h in hist):
+    if any(h.get("date") == today.isoformat() and (h.get("slot") == slot or os.environ.get("EVENT_NAME") == "schedule" or os.environ.get("POLL") == "true") for h in hist):
         print("skip: already posted", today, slot); set_output("skip", "true"); return
     q = f"queue/{today.isoformat()}-{slot}.json"
     if os.path.exists(q):
@@ -47,7 +47,7 @@ def main(out):
     # 自動実行が大幅に遅れて、枠の終わりを過ぎてしまった場合は投稿しない(手動実行は常に投稿)
     h, m = map(int, s["post_time"].split(":"))
     late = (now - now.replace(hour=h, minute=m, second=0, microsecond=0)).total_seconds() / 60
-    if os.environ.get("EVENT_NAME") == "schedule" and late > 300:   # 5時間以上遅れたら、次の枠と重なるのでスキップ
+    if (os.environ.get("EVENT_NAME") == "schedule" or os.environ.get("POLL") == "true") and late > 300:   # 5時間以上遅れたら、次の枠と重なるのでスキップ
         print(f"skip: {late:.0f} min after post time"); set_output("skip", "true"); return
     s["slot"] = slot
     json.dump(s, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
