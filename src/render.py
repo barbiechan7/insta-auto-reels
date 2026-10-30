@@ -61,7 +61,31 @@ def row_layer(script, i, nchars):
     return L
 
 def render(script_path, bg_path, out_path):
+    """script に segments(5本の台本)があれば、5秒×5本をつないだ25秒版。なければ従来の5秒版"""
     script = json.load(open(script_path, encoding="utf-8"))
+    if "segments" not in script:
+        return render_one(script, bg_path, out_path)
+    with tempfile.TemporaryDirectory() as tmp:
+        lst = []
+        for i, seg in enumerate(script["segments"]):
+            p = f"{tmp}/seg{i}.mp4"
+            render_one(seg, bg_path, p, with_bgm=False); lst.append(f"file '{p}'")
+        open(f"{tmp}/list.txt", "w").write("\n".join(lst))
+        total = DUR * len(lst)
+        bgm = os.path.join(HERE, "..", "assets", "bgm.m4a")
+        cmd = ["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", f"{tmp}/list.txt"]
+        if os.path.exists(bgm) and os.environ.get("NO_BGM") != "1":
+            vol = os.environ.get("BGM_VOLUME", "0.5")
+            cmd += ["-i", bgm, "-filter_complex",
+                    f"[1:a]atrim=0:{total},volume={vol},afade=t=in:d=0.5,afade=t=out:st={total-1.5}:d=1.5,aformat=sample_rates=44100:channel_layouts=stereo[a]",
+                    "-map", "0:v", "-map", "[a]", "-c:a", "aac", "-b:a", "160k"]
+        else:
+            cmd += ["-an"]
+        cmd += ["-t", str(total), "-c:v", "copy", "-movflags", "+faststart", out_path]
+        subprocess.run(cmd, check=True)
+    print("wrote", out_path)
+
+def render_one(script, bg_path, out_path, with_bgm=True):
     variants = [static_layers(script, o) for o in (3, 5, 4)]   # 色ずれの揺らぎ
     n = int(FPS*DUR)
     t_start = [0.15 + i*0.7 for i in range(5)]       # 各位の登場時刻
@@ -83,8 +107,8 @@ def render(script_path, bg_path, out_path):
                 frame.alpha_composite(cache[key])
             frame.save(f"{tmp}/o{fi:04d}.png")
         bgm = os.path.join(HERE, "..", "assets", "bgm.m4a")
-        has_audio = os.path.exists(bgm) and os.environ.get("NO_BGM") != "1"
-        vol = os.environ.get("BGM_VOLUME", "0.35")   # 小さめ(約-23 LUFS)。1.0で元の音量
+        has_audio = with_bgm and os.path.exists(bgm) and os.environ.get("NO_BGM") != "1"
+        vol = os.environ.get("BGM_VOLUME", "0.35")
         cmd = ["ffmpeg", "-v", "error", "-y", "-stream_loop", "-1", "-i", bg_path,
                "-framerate", str(FPS), "-i", f"{tmp}/o%04d.png"]
         fc = (f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps={FPS},"
