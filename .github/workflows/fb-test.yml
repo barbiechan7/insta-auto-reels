@@ -12,6 +12,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: pip install -q requests
+      - name: Check page access (no secrets printed)
+        continue-on-error: true
+        run: |
+          python - <<'P'
+          import os, requests
+          t, pid = os.environ['FB_PAGE_TOKEN'], os.environ['FB_PAGE_ID']
+          print('PAGE', requests.get(f'https://graph.facebook.com/v21.0/{pid}', params={'fields':'name,id,is_published,can_post','access_token':t}).text[:400])
+          d = requests.get('https://graph.facebook.com/v21.0/debug_token', params={'input_token':t,'access_token':t}).json().get('data',{})
+          print('TOKEN', {k:d.get(k) for k in ('type','is_valid','expires_at','scopes','granular_scopes')})
+          P
       - run: |
           echo '{"theme":"人生がどんどん好転する人","caption":"@runa_uranai777 ◀︎フォローで運気UP🌙\n\n「当たってた！」\n「私は○位だった！」\nぜひコメントで教えてください💗\n\nあとで見返したい方は保存も忘れずに🔖","hashtags":["#占い","#恋愛","#復縁","#恋愛占い","#タロット"]}' > s.json
           python src/post_fb.py "https://github.com/${{ github.repository }}/releases/download/${{ github.event.inputs.tag }}/reel.mp4" s.json
