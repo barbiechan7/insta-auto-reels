@@ -1,0 +1,17 @@
+name: fb-test
+on:
+  workflow_dispatch:
+    inputs:
+      tag: { description: "投稿する動画のリリース名", default: "reel-20261101-0941" }
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+      FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q requests
+      - run: |
+          echo '{"theme":"人生がどんどん好転する人","caption":"@runa_uranai777 ◀︎フォローで運気UP🌙\n\n「当たってた！」\n「私は○位だった！」\nぜひコメントで教えてください💗\n\nあとで見返したい方は保存も忘れずに🔖","hashtags":["#占い","#恋愛","#復縁","#恋愛占い","#タロット"]}' > s.json
+          python src/post_fb.py "https://github.com/${{ github.repository }}/releases/download/${{ github.event.inputs.tag }}/reel.mp4" s.json
