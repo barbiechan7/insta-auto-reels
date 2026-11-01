@@ -31,7 +31,7 @@ jobs:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
       LINE_CHANNEL_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
       LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
-      FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+      FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN2 }}
       FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
       EVENT_NAME: ${{ github.event_name }}
       SCHEDULE: ${{ github.event.schedule }}
