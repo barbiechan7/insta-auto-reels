@@ -31,6 +31,8 @@ jobs:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
       LINE_CHANNEL_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
       LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+      FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+      FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
       EVENT_NAME: ${{ github.event_name }}
       SCHEDULE: ${{ github.event.schedule }}
       SLOT: ${{ github.event.inputs.slot }}
@@ -78,6 +80,10 @@ jobs:
       - name: Post to Instagram
         if: steps.prep.outputs.skip != 'true' && github.event.inputs.dry_run != 'true'
         run: python src/post.py "${{ steps.rel.outputs.url }}" output/script.json "${{ steps.rel.outputs.cover }}"
+      - name: Post to Facebook Page
+        if: steps.prep.outputs.skip != 'true' && github.event.inputs.dry_run != 'true'
+        continue-on-error: true   # Facebookの失敗でInstagram側の記録を止めない
+        run: python src/post_fb.py "${{ steps.rel.outputs.url }}" output/script.json
       - name: Save history
         if: steps.prep.outputs.skip != 'true' && github.event.inputs.dry_run != 'true'
         run: |
