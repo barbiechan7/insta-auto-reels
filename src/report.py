@@ -8,6 +8,7 @@ import notify
 
 G = os.environ.get("IG_API_BASE", "https://graph.instagram.com/v21.0")
 TOK = os.environ["IG_ACCESS_TOKEN"]
+FB_TOK, FB_PAGE = os.environ.get("FB_PAGE_TOKEN"), os.environ.get("FB_PAGE_ID")
 JST = ZoneInfo("Asia/Tokyo")
 SNAP = "data/views_snapshot.json"
 BASELINE = 54500   # 『生まれた日』シリーズの過去ビュー中央値(仮説ログの判定基準)
@@ -30,6 +31,20 @@ def metric(mid, name):
 
 def fmt(n): return "-" if n is None else (f"{n/10000:.1f}万" if n >= 10000 else f"{n:,}")
 
+def fb_log():
+    out = {}
+    if os.path.exists("data/fb_log.csv"):
+        for row in csv.reader(open("data/fb_log.csv", encoding="utf-8")):
+            if len(row) >= 3:
+                out[(row[0], row[1])] = row[2]   # (日付,タイトル) -> FB動画ID
+    return out
+
+def fb_views(fb_id):
+    if not (FB_TOK and fb_id): return None
+    r = requests.get(f"https://graph.facebook.com/v21.0/{fb_id}", params={"fields": "views", "access_token": FB_TOK}, timeout=30)
+    try: return r.json().get("views")
+    except Exception: return None
+
 def main():
     now = datetime.datetime.now(JST)
     mode = os.environ.get("MODE") or ("monday" if now.weekday() == 0 else "midweek")
@@ -37,6 +52,7 @@ def main():
     if "error" in d:
         notify.send(f":warning: レポートを作れませんでした(Instagram APIエラー): {d['error']}"); sys.exit(1)
     names = titles()
+    fblog = fb_log()
     snap = json.load(open(SNAP, encoding="utf-8")) if os.path.exists(SNAP) else {}
     last_at = datetime.datetime.fromisoformat(snap["_at"]) if "_at" in snap else now - datetime.timedelta(days=7)
     rows = []
@@ -44,11 +60,15 @@ def main():
         if m.get("media_product_type") != "REELS": continue
         ts = datetime.datetime.fromisoformat(m["timestamp"].replace("Z", "+00:00")).astimezone(JST)
         v = metric(m["id"], "views")
+        title = names.get(m["id"]) or (m.get("caption") or "").split("\n")[0][:18] or m["permalink"]
+        fb_id = fblog.get((str(ts.date()), title))
         rows.append({"id": m["id"], "ts": ts, "views": v, "reach": metric(m["id"], "reach"), "link": m["permalink"],
-                     "title": names.get(m["id"]) or (m.get("caption") or "").split("\n")[0][:18] or m["permalink"],
+                     "title": title, "fb_views": fb_views(fb_id),
                      "delta": None if m["id"] not in snap or v is None else v - snap[m["id"]]})
     age = lambda r: (now - r["ts"]).total_seconds() / 86400
-    line = lambda r: f"• {r['ts']:%m/%d %H:%M} 「{r['title']}」 {fmt(r['views'])}ビュー" + (f"(+{fmt(r['delta'])})" if r["delta"] else "") + f" / リーチ {fmt(r['reach'])}"
+    line = lambda r: (f"• {r['ts']:%m/%d %H:%M} 「{r['title']}」 {fmt(r['views'])}ビュー"
+                       + (f"(+{fmt(r['delta'])})" if r["delta"] else "") + f" / リーチ {fmt(r['reach'])}"
+                       + (f" / FB再生 {fmt(r['fb_views'])}" if r["fb_views"] is not None else ""))
     out = []
     if mode == "monday":
         week = [r for r in rows if age(r) < 7]

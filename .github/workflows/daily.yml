@@ -98,8 +98,10 @@ jobs:
           hist.append({"date": str(now.date()), "slot": s["slot"], "theme": s["theme"]})
           json.dump(hist[-100:], open("history.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
           open("data/daily_log.csv", "a", encoding="utf-8").write(f"{now.date()} {s['post_time']}(実際{now:%H:%M}),{s['theme']},,,{open('output/posted_id.txt').read().strip()}\n")  # 日付 予定時刻(実際の投稿時刻),タイトル,ビュー数(あとで記入),備考,投稿ID
+          if os.path.exists("output/posted_fb_id.txt"):
+              open("data/fb_log.csv", "a", encoding="utf-8").write(f"{now.date()},{s['theme']},{open('output/posted_fb_id.txt').read().strip()}\n")  # 日付,タイトル,FB動画ID
           PY
-          git add history.json data/daily_log.csv
+          git add history.json data/daily_log.csv data/fb_log.csv 2>/dev/null || git add history.json data/daily_log.csv
           git commit -m "history" || true
           git pull --rebase || true
           git push

@@ -14,6 +14,9 @@ def main(video_url, script_path):
                       files={"source": ("reel.mp4", video.content, "video/mp4")}, timeout=600)
     print(r.status_code, r.text[:1500])
     r.raise_for_status()
+    fb_id = r.json().get("id")
+    if fb_id:
+        open("output/posted_fb_id.txt", "w", encoding="utf-8").write(fb_id)
 
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
