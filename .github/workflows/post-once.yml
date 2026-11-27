@@ -1,0 +1,49 @@
+name: post-once
+on:
+  workflow_dispatch:
+    inputs:
+      video_url:
+        description: "投稿する動画のURL"
+        required: true
+      cover_url:
+        description: "サムネイルのURL(任意)"
+        default: ""
+      post_at_jst:
+        description: "投稿したい時刻 JST (例: 18:30)。空なら即投稿"
+        default: ""
+permissions:
+  contents: read
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      IG_USER_ID: ${{ secrets.IG_USER_ID }}
+      IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+      FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN2 }}
+      FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      LINE_CHANNEL_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
+      LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -q requests
+      - name: Wait until post time (JST)
+        if: github.event.inputs.post_at_jst != ''
+        run: |
+          TARGET_EPOCH=$(TZ=Asia/Tokyo date -d "today ${{ github.event.inputs.post_at_jst }}:00" +%s)
+          NOW_EPOCH=$(date +%s)
+          SLEEP=$((TARGET_EPOCH - NOW_EPOCH))
+          echo "sleep seconds: $SLEEP"
+          if [ "$SLEEP" -gt 0 ]; then sleep "$SLEEP"; fi
+      - name: Post to Instagram
+        run: python src/post.py "${{ github.event.inputs.video_url }}" data/custom_script_20261127.json "${{ github.event.inputs.cover_url }}"
+      - name: Post to Facebook Page
+        continue-on-error: true
+        run: python src/post_fb.py "${{ github.event.inputs.video_url }}" data/custom_script_20261127.json
+      - name: Notify failure
+        if: failure()
+        run: |
+          pip install -q requests
+          python src/notify.py ":rotating_light: 単発投稿でエラーが起きました。 ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
